@@ -102,7 +102,7 @@ def main():
     def train_step(state, batch, rng):
 
         def compute_loss(params, batch, rng):
-            batch_losses = diff_lm.apply(params, batch['input_ids'], rng)
+            batch_losses = diff_lm.apply(params, batch, rng)
             return batch_losses.mean()
 
         train_rng,  new_train_rng = jax.random.split(rng)
