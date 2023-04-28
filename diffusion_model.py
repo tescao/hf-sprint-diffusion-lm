@@ -144,18 +144,32 @@ class DiffusionLM(nn.Module):
     return alphas_cumprod, sqrt_alphas_cumprod, sqrt_one_minus_alphas_cumprod, log_one_minus_alphas_cumprod
 
 
+#   def _betas_for_alpha_bar(self, max_beta = 0.999):
+#     # returns betas, only for sqrt schedule
+#     schedule_fn = lambda t: 1 - jnp.sqrt(t + 0.0001)
+
+#     betas = []
+#     for i in range(self.timesteps):
+#         t1 = i / self.timesteps
+#         t2 = (i + 1) / self.timesteps
+#         betas.append(min(1 - schedule_fn(t2) / schedule_fn(t1), max_beta))
+
+#     self.betas = jnp.array(betas)
+
   def _betas_for_alpha_bar(self, max_beta = 0.999):
-    # returns betas, only for sqrt schedule
+
     schedule_fn = lambda t: 1 - jnp.sqrt(t + 0.0001)
+    
+    t1_arr = jnp.array(range(self.timesteps)) 
+    t2_arr = t1_arr + 1
 
-    betas = []
-    for i in range(self.timesteps):
-        t1 = i / self.timesteps
-        t2 = (i + 1) / self.timesteps
-        betas.append(min(1 - schedule_fn(t2) / schedule_fn(t1), max_beta))
+    t1_arr = t1_arr / self.timesteps
+    t2_arr = t2_arr / self.timesteps
 
-    self.betas = jnp.array(betas)
+    scheduled_arr = 1 - schedule_fn(t2_arr) / schedule_fn(t2_arr)
 
+    return jnp.where(scheduled_arr < max_beta, scheduled_arr, max_beta)
+  
 
   def _q_mean_variance(self, x_start, t):
 
