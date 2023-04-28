@@ -14,16 +14,15 @@ class Flax1DTransformer(nn.Module, FlaxModelMixin):
   seq_len : int = 64 
   vocab_size : int = 333
   hidden_size : int = 768
-  max_position_embeddings : int = 512
-  position_ids = jnp.expand_dims(jnp.arange((max_position_embeddings)), 0)
   config = AutoConfig.from_pretrained('bert-base-cased')
   config.hidden_size = hidden_size
+  position_ids = jnp.expand_dims(jnp.arange((config.max_position_embeddings)), 0)
 
   def setup(self):
     self.time_embed = FlaxTimestepEmbedding(self.hidden_size)
     self.timestep_embedding = FlaxTimesteps()
     self.input_up_proj = nn.Sequential([nn.Dense(self.hidden_size), nn.hard_tanh, nn.Dense(self.hidden_size)])
-    self.position_embeddings = nn.Embed(self.max_position_embeddings, self.hidden_size)
+    self.position_embeddings = nn.Embed(self.config.max_position_embeddings, self.hidden_size)
     self.input_transformer = FlaxBertEncoder(self.config)
     self.layernorm = nn.LayerNorm()
     #self.dropout = nn.Dropout(self.config.hidden_dropout_prob, deterministic = False)
