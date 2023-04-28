@@ -166,9 +166,9 @@ class DiffusionLM(nn.Module):
     t1_arr = t1_arr / self.timesteps
     t2_arr = t2_arr / self.timesteps
 
-    scheduled_arr = 1 - schedule_fn(t2_arr) / schedule_fn(t2_arr)
+    betas = 1 - schedule_fn(t2_arr) / schedule_fn(t2_arr)
 
-    return jnp.where(scheduled_arr < max_beta, scheduled_arr, max_beta)
+    self.betas = jnp.array(betas)
   
 
   def _q_mean_variance(self, x_start, t):
