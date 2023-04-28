@@ -9,7 +9,6 @@ from collections import Counter, defaultdict
 def extract_into_tensor(arr, timesteps, broadcast_shape):
     res = arr[timesteps]
     while len(res.shape) < len(broadcast_shape):
-        print(res.shape)
         res = res[..., None]
 
     return jnp.broadcast_to(res, broadcast_shape)

@@ -116,7 +116,6 @@ class DiffusionLM(nn.Module):
 
     res = self.alphas[timesteps]
     while len(res.shape) < len(broadcast_shape):
-      print(res.shape)
       res = res[..., None]
 
     return jnp.broadcast_to(res, broadcast_shape)
