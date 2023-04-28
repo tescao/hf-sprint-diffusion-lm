@@ -12,8 +12,10 @@ from transformers import FlaxBertModel
 from transformers.models.bert.modeling_flax_bert import FlaxBertEncoder
 import torch
 
-from .transformer import Flax1DTransformer
-from .model_utils import extract_into_tensor, mean_flat, crossEntropy
+import transformer
+import model_utils as u
+# from transformer import Flax1DTransformer
+# from model_utils import extract_into_tensor, mean_flat, crossEntropy
 
 
 class DiffusionLM(nn.Module):
@@ -29,7 +31,7 @@ class DiffusionLM(nn.Module):
 
     #self.embedder = Embedder()
     self.embedder = nn.Embed(self.vocab_size, self.latent_dim)
-    self.transformer = Flax1DTransformer(vocab_size = self.vocab_size)
+    self.transformer = transformer.Flax1DTransformer(vocab_size = self.vocab_size)
     #self.scheduler = FlaxDDPMScheduler(num_train_timesteps = self.timesteps, beta_start = 0.0001, beta_end =  0.02, beta_schedule = self.beta_schedule)
     #self.noise_scheduler_state = self.scheduler.create_state()
     self.alphas_cumprod, self.sqrt_alphas_cumprod, self.sqrt_one_minus_alphas_cumprod, self.log_one_minus_alphas_cumprod = self.get_alphas()# shape (2000,)
@@ -70,7 +72,7 @@ class DiffusionLM(nn.Module):
     t, weights = self.schedule_sampler(sample_rng)
 
     x_start_mean = self.embedder(x)
-    std = extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, jnp.array([0]), x_start_mean.shape)
+    std = u.extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, jnp.array([0]), x_start_mean.shape)
 
     rng, noise_rng = jax.random.split(rng)
     x_start = self.get_x_start(x_start_mean, std, noise_rng)
@@ -86,14 +88,14 @@ class DiffusionLM(nn.Module):
 
     model_output = self.transformer(x_t, t)
 
-    terms["mse"] = mean_flat((x_start - model_output) ** 2)
+    terms["mse"] = u.mean_flat((x_start - model_output) ** 2)
 
     t0_mask = t == 0
-    t0_loss = mean_flat((x_start_mean - model_output) ** 2)
+    t0_loss = u.mean_flat((x_start_mean - model_output) ** 2)
     terms["mse"] = jnp.where(t0_mask, t0_loss, terms["mse"])
 
     out_mean, _, _ = self._q_mean_variance(x_start, jnp.array([self.timesteps - 1]))
-    tT_loss = mean_flat(out_mean**2)
+    tT_loss = u.mean_flat(out_mean**2)
 
     decoder_nll = self.token_discrete_loss(x_start, get_logits, x)
 
@@ -127,8 +129,8 @@ class DiffusionLM(nn.Module):
 
 
   def q_sample(self, x_start, t, noise):
-    return (extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start + 
-            extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise)
+    return (u.extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start + 
+            u.extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise)
     
 
   def get_alphas(self):
@@ -157,12 +159,11 @@ class DiffusionLM(nn.Module):
     self.betas = jnp.array(betas)
 
 
-
   def _q_mean_variance(self, x_start, t):
 
-    mean = extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
-    variance = extract_into_tensor(1.0 - self.alphas_cumprod, t, x_start.shape)
-    log_variance = extract_into_tensor(self.log_one_minus_alphas_cumprod, t, x_start.shape)
+    mean = u.extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
+    variance = u.extract_into_tensor(1.0 - self.alphas_cumprod, t, x_start.shape)
+    log_variance = u.extract_into_tensor(self.log_one_minus_alphas_cumprod, t, x_start.shape)
 
     return mean, variance, log_variance
 
@@ -170,4 +171,4 @@ class DiffusionLM(nn.Module):
   def token_discrete_loss(self, x_t, get_logits, input_ids):
       logits = get_logits(x_t)  # bsz, seqlen, vocab
 
-      return crossEntropy(logits, input_ids)
+      return u.crossEntropy(logits, input_ids)

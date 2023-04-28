@@ -6,7 +6,7 @@ from spacy.lang.en import English
 from collections import Counter, defaultdict
 
 
-def extract_into_tensor(self, arr, timesteps, broadcast_shape):
+def extract_into_tensor(arr, timesteps, broadcast_shape):
     res = arr[timesteps]
     while len(res.shape) < len(broadcast_shape):
         print(res.shape)
@@ -15,11 +15,11 @@ def extract_into_tensor(self, arr, timesteps, broadcast_shape):
     return jnp.broadcast_to(res, broadcast_shape)
 
 
-def mean_flat(self, arr):
+def mean_flat(arr):
     return jnp.mean(arr, axis=(range(1,len(arr.shape))))
 
 
-def crossEntropy(self, preds, targets,  softmax = True):
+def crossEntropy(preds, targets,  softmax = True):
     # raw preds and targets
 
     batch_size, seq_len, vocab_size = preds.shape
@@ -48,7 +48,7 @@ def _load_from_path(fpath):
 def make_vocab(vocab_path = 'vocab.json', rewrite = False):
 
     if os.path.exists(vocab_path):
-        vocab_dict = json.loads(open(vocab_path))
+        vocab_dict = json.load(open(vocab_path, 'r'))
         return vocab_dict
     
     sentence_lst = _load_from_path('data/e2e_data/src1_train.txt')

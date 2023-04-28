@@ -11,8 +11,10 @@ import jax.numpy as jnp
 from flax.training import train_state
 import optax
 
-from .diffusion_model import DiffusionLM
-from .utils import make_vocab, make_dataset
+import diffusion_model as dm
+import model_utils as u
+# from diffusion_model import DiffusionLM
+# from utils import make_vocab, make_dataset
 
 
 logger = logging.getLogger(__name__)
@@ -48,11 +50,11 @@ def main():
 
     # load data
     #vocab_path = 'vocab.json'
-    vocab_dict = make_vocab(vocab_path = 'vocab.json', rewrite = True)
+    vocab_dict = u.make_vocab(vocab_path = 'vocab.json', rewrite = True)
 
-    train_dataset = make_dataset('data/e2e_data/src1_train.txt', vocab_dict, padding_mode = 'block', seq_length = 64)
-    test_dataset = make_dataset('data/e2e_data/src1_test.txt', vocab_dict, padding_mode = 'block', seq_length = 64)
-    val_dataset = make_dataset('data/e2e_data/src1_valid.txt', vocab_dict, padding_mode = 'block', seq_length = 64)
+    train_dataset = u.make_dataset('data/e2e_data/src1_train.txt', vocab_dict, padding_mode = 'block', seq_length = 64)
+    test_dataset = u.make_dataset('data/e2e_data/src1_test.txt', vocab_dict, padding_mode = 'block', seq_length = 64)
+    val_dataset = u.make_dataset('data/e2e_data/src1_valid.txt', vocab_dict, padding_mode = 'block', seq_length = 64)
 
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -81,13 +83,16 @@ def main():
     rng = jax.random.PRNGKey(args.seed)
     rng, train_rng = jax.random.split(rng)
 
-    diff_lm = DiffusionLM(timesteps = args.timesteps,
+    diff_lm = dm.DiffusionLM(timesteps = args.timesteps,
                         latent_dim = args.latent_dim,
                         batch_size = args.batch_size,
                         seq_len = args.seq_len,
                         vocab_size = len(vocab_dict))
+
+    for b in train_dataloader:
+      break                    
     
-    diff_lm_params = diff_lm.init(rng, jnp.ones((args.batch_size, args.seq_len, args.latent_dim)), train_rng)
+    diff_lm_params = diff_lm.init(rng, b['input_ids'], train_rng) # jnp.ones((args.batch_size, args.seq_len, args.latent_dim))
 
     # prep for training
     tx = optax.adamw(learning_rate=args.learning_rate, b1=0.9, b2=0.999, eps=1e-6)
