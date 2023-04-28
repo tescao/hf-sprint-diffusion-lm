@@ -29,9 +29,8 @@ class DiffusionLM(nn.Module):
 
   def setup(self):
 
-    #self.embedder = Embedder()
     self.embedder = nn.Embed(self.vocab_size, self.latent_dim)
-    self.transformer = transformer.Flax1DTransformer(vocab_size = self.vocab_size)
+    self.transformer = transformer.Flax1DTransformer(latent_dim = self.latent_dim, hidden_dim = self.hidden_dim, batch_size = self.batch_size, seq_len = self.seq_len, vocab_size = self.vocab_size)
     #self.scheduler = FlaxDDPMScheduler(num_train_timesteps = self.timesteps, beta_start = 0.0001, beta_end =  0.02, beta_schedule = self.beta_schedule)
     #self.noise_scheduler_state = self.scheduler.create_state()
     self.alphas_cumprod, self.sqrt_alphas_cumprod, self.sqrt_one_minus_alphas_cumprod, self.log_one_minus_alphas_cumprod = self.get_alphas()# shape (2000,)
