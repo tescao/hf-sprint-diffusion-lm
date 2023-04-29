@@ -16,7 +16,6 @@ import model_utils as u
 # from diffusion_model import DiffusionLM
 # from utils import make_vocab, make_dataset
 
-
 logger = logging.getLogger(__name__)
 
 def collate_fn(examples):
@@ -51,11 +50,12 @@ def main():
 
     # load data
     #vocab_path = 'vocab.json'
-    vocab_dict = u.make_vocab(vocab_path = 'vocab.json', rewrite = True)
+    tokenizer = u.get_tokenizer()
+    vocab_dict = u.make_vocab(tokenizer = tokenizer, vocab_path = 'vocab.json')
 
-    train_dataset = u.make_dataset('data/e2e_data/src1_train.txt', vocab_dict, padding_mode = 'block', seq_length = 64)
-    test_dataset = u.make_dataset('data/e2e_data/src1_test.txt', vocab_dict, padding_mode = 'block', seq_length = 64)
-    val_dataset = u.make_dataset('data/e2e_data/src1_valid.txt', vocab_dict, padding_mode = 'block', seq_length = 64)
+    train_dataset = u.make_dataset('data/e2e_data/src1_train.txt', vocab_dict, padding_mode = 'block', seq_length = args.seq_len)
+    test_dataset = u.make_dataset('data/e2e_data/src1_test.txt', vocab_dict, padding_mode = 'block', seq_length = args.seq_len)
+    val_dataset = u.make_dataset('data/e2e_data/src1_valid.txt', vocab_dict, padding_mode = 'block', seq_length = args.seq_len)
 
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -82,7 +82,7 @@ def main():
 
     # initialize
     rng = jax.random.PRNGKey(args.seed)
-    rng, train_rng = jax.random.split(rng)
+    rng, rng_params = jax.random.split(rng)
 
     diff_lm = dm.DiffusionLM(timesteps = args.timesteps,
                         latent_dim = args.latent_dim,
@@ -93,11 +93,12 @@ def main():
     for b in train_dataloader:
       break                    
     
-    diff_lm_params = diff_lm.init(rng, b['input_ids'], train_rng) # jnp.ones((args.batch_size, args.seq_len, args.latent_dim))
+    diff_lm_params = diff_lm.init(rng, b['input_ids'], rng_params) # jnp.ones((args.batch_size, args.seq_len, args.latent_dim))
 
     # prep for training
     tx = optax.adamw(learning_rate=args.learning_rate, b1=0.9, b2=0.999, eps=1e-6)
     state = train_state.TrainState.create(apply_fn=diff_lm.__call__, params=diff_lm_params, tx=tx)
+    train_rng, validation_rng = jax.random.split(rng)
 
     @jax.jit
     def train_step(state, batch, rng):
@@ -121,7 +122,7 @@ def main():
     for ep in range(args.epochs):
         print('Epoch', ep)
         for batch in train_dataloader:
-            state,  rng, loss = train_step(state, batch['input_ids'], rng)
+            state, train_rng, loss = train_step(state, batch['input_ids'], train_rng)
             print('batch loss', loss)
             losses.append(loss)
             global_step += 1

@@ -30,11 +30,15 @@ def crossEntropy(preds, targets,  softmax = True):
     return -jnp.mean(res.reshape(batch_size, -1), axis = -1)
 
 
-def _load_from_path(fpath):
-    #fpath = './src1_test.txt'
-    sentence_lst = []
+def get_tokenizer():
     nlp = English()
     tokenizer = nlp.tokenizer
+    return tokenizer
+
+
+def _load_from_path(fpath, tokenizer):
+    #fpath = './src1_test.txt'
+    sentence_lst = []
     with open(fpath, 'r', encoding = 'utf8') as ff:
         for row in ff:
             word_lst = row.split('||')[1]
@@ -44,13 +48,13 @@ def _load_from_path(fpath):
     return sentence_lst
 
 
-def make_vocab(vocab_path = 'vocab.json', rewrite = False):
+def make_vocab(tokenizer = None, vocab_path = 'vocab.json', rewrite = False):
 
     if os.path.exists(vocab_path):
         vocab_dict = json.load(open(vocab_path, 'r'))
         return vocab_dict
     
-    sentence_lst = _load_from_path('data/e2e_data/src1_train.txt')
+    sentence_lst = _load_from_path('data/e2e_data/src1_train.txt', tokenizer)
 
     counter = Counter()
     for input_ids in sentence_lst:
