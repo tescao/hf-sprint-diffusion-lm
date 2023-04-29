@@ -8,7 +8,7 @@ import logging
 import torch
 import jax
 import jax.numpy as jnp
-from flax.training import train_state
+from flax.training import train_state, checkpoints
 import optax
 
 import diffusion_model as dm
@@ -39,6 +39,7 @@ def parse_args():
     parser.add_argument('--learning_rate', type = float, default = 0.001)
     parser.add_argument('--latent_dim', type = int, default = 32)
     parser.add_argument('--seq_len', type = int, default = 64)
+    parser.add_argument('--checkpointing_steps', type = int, default = 10)
 
     args = parser.parse_args()
     print('args', args)
@@ -98,7 +99,7 @@ def main():
     tx = optax.adamw(learning_rate=args.learning_rate, b1=0.9, b2=0.999, eps=1e-6)
     state = train_state.TrainState.create(apply_fn=diff_lm.__call__, params=diff_lm_params, tx=tx)
 
-
+    @jax.jit
     def train_step(state, batch, rng):
 
         def compute_loss(params, batch, rng):
@@ -115,15 +116,21 @@ def main():
         return new_state,  new_train_rng, loss
     
     losses = []
+    global_step = 0
+    models_dir = 'models'
     for ep in range(args.epochs):
         print('Epoch', ep)
         for batch in train_dataloader:
             state,  rng, loss = train_step(state, batch['input_ids'], rng)
             print('batch loss', loss)
             losses.append(loss)
+            global_step += 1
 
-        diff_lm.save_pretrained(f"models/{args.prefix}_ep{ep}", params=state.params,)
+            if global_step % args.checkpointing_steps == 0:
+                checkpoints.save_checkpoint(ckpt_dir=os.path.join(models_dir, args.prefix), target=state, step=global_step, keep = 2)
 
+        
+#restored_state = checkpoints.restore_checkpoint(ckpt_dir=CKPT_DIR, target=state)
 
     
 if __name__ == "__main__":
@@ -136,8 +143,9 @@ port to TPU
 add sprint-related requirements (docstring, push to hub)
 add evaluation
 add wandb
+add profiling
 
-add intermittent saving
+add intermittent saving https://github.com/google/flax/discussions/1876
 add reloading model to continue training
 add training stopping criteria
 
