@@ -74,7 +74,7 @@ def make_vocab(tokenizer = None, vocab_path = 'vocab.json', rewrite = False):
     return vocab_dict
 
 def make_dataset(fpath, vocab_dict, padding_mode = 'block', seq_length = 64):
-    sentence_lst = _load_from_path(fpath)
+    sentence_lst = _load_from_path(fpath, get_tokenizer())
     print(f"Loaded {len(sentence_lst)} sentences")
 
     group_lst = defaultdict(list)

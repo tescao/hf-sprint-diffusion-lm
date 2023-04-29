@@ -111,8 +111,8 @@ def main():
     # wandb init
     if jax.process_index() == 0 and args.report_to == "wandb":
         wandb.init(
-            entity=args.wandb_entity,
-            project=args.tracker_project_name,
+            entity="diff-lm", # TODO add a args   
+            project="diff-lm",
             job_type="train",
             config=args,
         )
