@@ -26,7 +26,8 @@ from flax import jax_utils
 from flax.core.frozen_dict import unfreeze
 from flax.training import train_state, checkpoints
 from flax.training.common_utils import shard
-
+from flax.training import orbax_utils
+import orbax.checkpoint
 
 from PIL import Image, PngImagePlugin
 from torch.utils.data import IterableDataset
@@ -49,7 +50,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--seed', type = int, default = 0)
-    parser.add_argument('--batch_size', type = int, default = 16)
+    parser.add_argument('--batch_size', type = int, default = 64)
     parser.add_argument('--epochs', type = int, default = 100)
     parser.add_argument('--timesteps', type = int, default = 20000)
     parser.add_argument('--prefix', type = str, default = 'test')
@@ -65,8 +66,8 @@ def parse_args():
     parser.add_argument('--gradient_accumulation_steps', type = int, default = 1) 
     parser.add_argument("--profile_memory", action="store_true",  help="Whether to dump an initial (before training loop) and a final (at program end) memory profile.",)
     parser.add_argument( "--profile_steps", type=int, default=2,  help="How many training steps to profile in the beginning.",)
-    parser.add_argument("--logging_steps", type=int, default=100, help=("log training metric every X steps to `--report_t`"),)
-    parser.add_argument("--checkpointing_steps", type=int, default=100, help=("log training metric every X steps to `--report_t`"),)
+    parser.add_argument("--logging_steps", type=int, default=300, help=("log training metric every X steps to `--report_t`"),)
+    parser.add_argument("--checkpointing_steps", type=int, default=300, help=("log training metric every X steps to `--report_t`"),)
 
 
     args = parser.parse_args()
@@ -294,6 +295,9 @@ def main():
         jax.profiler.save_device_memory_profile(os.path.join(args.output_dir, "memory_initial.prof"))
     t00 = t0 = time.monotonic()
 
+    orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
+    options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=2, create=True)
+    checkpoint_manager = orbax.checkpoint.CheckpointManager('managed_ckpts', orbax_checkpointer, options)
     for epoch in epochs:
 
         train_metrics = []
@@ -309,6 +313,7 @@ def main():
             disable=jax.process_index() > 0,
         )
 
+    
         # train
         for batch in train_dataloader:
             batch = batch['input_ids']
@@ -351,7 +356,9 @@ def main():
             if global_step % args.checkpointing_steps == 0 and jax.process_index() == 0:
                 # controlnet.save_pretrained(f"{args.output_dir}/{global_step}",
                 #     params=get_params_to_save(state.params),)
-                checkpoints.save_checkpoint(ckpt_dir=os.path.join(args.output_dir, args.prefix), target=state, step=global_step, keep = 2)
+                save_args = orbax_utils.save_args_from_target(state)
+                checkpoint_manager.save(global_step, state, save_kwargs = {"save_args": save_args})
+                # checkpoints.save_checkpoint(ckpt_dir=os.path.join(args.output_dir, args.prefix), target=state, step=global_step, keep = 2)
 
         # done with epoch
         train_metric = jax_utils.unreplicate(train_metric)
@@ -362,7 +369,8 @@ def main():
     if jax.process_index() == 0:
         # final validation
         # and save
-        checkpoints.save_checkpoint(ckpt_dir=os.path.join(args.output_dir, args.prefix), target=state, step=global_step, keep = 2)
+        # checkpoints.save_checkpoint(ckpt_dir=os.path.join(args.output_dir, args.prefix), target=state, step=global_step, keep = 2)
+        checkpoint_manager.save(global_step, state, save_kwargs = {"save_args": save_args})
 
         if args.push_to_hub:
             # save_model_card(
