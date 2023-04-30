@@ -68,7 +68,7 @@ class DiffusionLM(nn.Module):
 
     rng, sample_rng = jax.random.split(rng)
 
-    t, weights = self.schedule_sampler(sample_rng)
+    t, weights = self.schedule_sampler(sample_rng, x.shape[0])
 
     x_start_mean = self.embedder(x)
     std = u.extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, jnp.array([0]), x_start_mean.shape)
@@ -102,11 +102,11 @@ class DiffusionLM(nn.Module):
 
     return terms["loss"]
 
-  def schedule_sampler(self, rng):
+  def schedule_sampler(self, rng, bsz):
 
       w = jnp.ones([self.timesteps])
       p = w / jnp.sum(w)
-      indices = jax.random.choice(rng, len(p), shape=(self.batch_size,), p=p)
+      indices = jax.random.choice(rng, len(p), shape=(bsz,), p=p)
       weights = 1 / (len(p) * p[indices])
 
       return indices, weights
