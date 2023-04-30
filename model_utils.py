@@ -50,7 +50,7 @@ def _load_from_path(fpath, tokenizer):
 
 def make_vocab(tokenizer = None, vocab_path = 'vocab.json', rewrite = False):
 
-    if os.path.exists(vocab_path):
+    if os.path.exists(vocab_path) and not rewrite:
         vocab_dict = json.load(open(vocab_path, 'r'))
         return vocab_dict
     

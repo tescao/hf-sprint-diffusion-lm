@@ -66,6 +66,8 @@ def parse_args():
     parser.add_argument("--profile_memory", action="store_true",  help="Whether to dump an initial (before training loop) and a final (at program end) memory profile.",)
     parser.add_argument( "--profile_steps", type=int, default=2,  help="How many training steps to profile in the beginning.",)
     parser.add_argument("--logging_steps", type=int, default=100, help=("log training metric every X steps to `--report_t`"),)
+    parser.add_argument("--checkpointing_steps", type=int, default=100, help=("log training metric every X steps to `--report_t`"),)
+
 
     args = parser.parse_args()
     print('args', args)
