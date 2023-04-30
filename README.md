@@ -3,13 +3,10 @@
 
 
 ToDo
-
-port to TPU  
+ 
 add sprint-related requirements (docstring, push to hub)  
-add evaluation  
-add wandb  
-
-add intermittent saving  
+add evaluation   
+ 
 add reloading model to continue training  
 add training stopping criteria  
 
