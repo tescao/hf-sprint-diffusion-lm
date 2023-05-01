@@ -1,5 +1,10 @@
 # hf-sprint-diffusion-lm
 
+Implementing controllabale text generation with diffusion for HuggingFace JAX/Diffusers community sprint.
+References:
+https://github.com/XiangLi1999/Diffusion-LM  
+https://github.com/madaan/minimal-text-diffusion  
+
 
 
 ToDo
