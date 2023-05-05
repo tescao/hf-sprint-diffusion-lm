@@ -66,7 +66,7 @@ def parse_args():
     parser.add_argument('--hub_model_id', type = str, default = 'test') 
     parser.add_argument('--gradient_accumulation_steps', type = int, default = 1) 
     parser.add_argument("--profile_memory", action="store_true",  help="Whether to dump an initial (before training loop) and a final (at program end) memory profile.",)
-    parser.add_argument( "--profile_steps", type=int, default=2,  help="How many training steps to profile in the beginning.",)
+    parser.add_argument("--profile_steps", type=int, default=2,  help="How many training steps to profile in the beginning.",)
     parser.add_argument("--logging_steps", type=int, default=300, help=("log training metric every X steps to `--report_t`"),)
     parser.add_argument("--checkpointing_steps", type=int, default=300, help=("log training metric every X steps to `--report_t`"),)
 
@@ -303,7 +303,7 @@ def main():
     #checkpoint_manager = orbax.checkpoint.CheckpointManager('managed_ckpts', orbax_checkpointer, options)
     checkpoint_manager = orbax.checkpoint.CheckpointManager('managed_ckpts2', orbax_checkpointer, options)
     save_args = orbax_utils.save_args_from_target(state)
-    ckpt = {'model': state, 'config': {"name": "test"}, 'data': [b['input_ids']]}
+    #ckpt = {'model': state, 'config': {"name": "test"}, 'data': [b['input_ids']]}
     for epoch in epochs:
 
         train_metrics = []
