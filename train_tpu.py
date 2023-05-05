@@ -57,6 +57,7 @@ def parse_args():
     parser.add_argument('--learning_rate', type = float, default = 0.001)
     parser.add_argument('--latent_dim', type = int, default = 32)
     parser.add_argument('--seq_len', type = int, default = 64)
+    parser.add_argument('--vocab_size', type = int, default = 821)
 
     parser.add_argument("--push_to_hub", action="store_true", help="Whether or not to push the model to the Hub.")
     parser.add_argument("--report_to", type=str, default="wandb", help=('The integration to report the results and logs to. Currently only supported platforms are `"wandb"`'))
@@ -96,7 +97,6 @@ def get_params_to_save(params):
 
 def main():
     args = parse_args()
-    args.output_dir = args.output_dir.replace("{timestamp}", time.strftime("%Y%m%d_%H%M%S"))
 
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -124,7 +124,7 @@ def main():
     if args.seed is not None:
         set_seed(args.seed)
 
-    rng = jax.random.PRNGKey(0)
+    rng = jax.random.PRNGKey(args.seed)
 
     # init repo to push to HF
     if jax.process_index() == 0:
@@ -139,6 +139,7 @@ def main():
     # get tokeniser
     tokenizer = u.get_tokenizer()
     vocab_dict = u.make_vocab(tokenizer = tokenizer, vocab_path = 'vocab.json')
+    args.vocab_size = len(vocab_dict)
     total_train_batch_size = args.batch_size * jax.local_device_count() * args.gradient_accumulation_steps
 
     train_dataset = u.make_dataset('data/e2e_data/src1_train.txt', vocab_dict, padding_mode = 'block', seq_length = args.seq_len)
@@ -297,7 +298,10 @@ def main():
 
     orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
     options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=2, create=True)
-    checkpoint_manager = orbax.checkpoint.CheckpointManager('managed_ckpts', orbax_checkpointer, options)
+    #checkpoint_manager = orbax.checkpoint.CheckpointManager('managed_ckpts', orbax_checkpointer, options)
+    checkpoint_manager = orbax.checkpoint.CheckpointManager('managed_ckpts2', orbax_checkpointer, options)
+    save_args = orbax_utils.save_args_from_target(state)
+    ckpt = {'model': state, 'config': {"name": "test"}, 'data': [b['input_ids']]}
     for epoch in epochs:
 
         train_metrics = []
@@ -356,8 +360,9 @@ def main():
             if global_step % args.checkpointing_steps == 0 and jax.process_index() == 0:
                 # controlnet.save_pretrained(f"{args.output_dir}/{global_step}",
                 #     params=get_params_to_save(state.params),)
-                save_args = orbax_utils.save_args_from_target(state)
+                #ckpt = {'model': state, 'config': {"name": "test"}, 'data': batch}
                 checkpoint_manager.save(global_step, state, save_kwargs = {"save_args": save_args})
+                logger.info(f'Saved checkpoint at step {global_step}')
                 # checkpoints.save_checkpoint(ckpt_dir=os.path.join(args.output_dir, args.prefix), target=state, step=global_step, keep = 2)
 
         # done with epoch
@@ -370,7 +375,9 @@ def main():
         # final validation
         # and save
         # checkpoints.save_checkpoint(ckpt_dir=os.path.join(args.output_dir, args.prefix), target=state, step=global_step, keep = 2)
+        #ckpt = {'model': state, 'config': {"name": "test"}, 'data': batch}
         checkpoint_manager.save(global_step, state, save_kwargs = {"save_args": save_args})
+        logger.info(f'Saved final checkpoint at step {global_step}')
 
         if args.push_to_hub:
             # save_model_card(

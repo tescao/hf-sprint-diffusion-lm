@@ -1,5 +1,6 @@
 import os
 import json
+from typing import List
 import jax
 import jax.numpy as jnp
 from spacy.lang.en import English
@@ -34,6 +35,9 @@ def get_tokenizer():
     nlp = English()
     tokenizer = nlp.tokenizer
     return tokenizer
+
+def get_decoder(vocab_dict):
+    return {v:k for k,v in vocab_dict.items()}
 
 
 def _load_from_path(fpath, tokenizer):
@@ -101,3 +105,25 @@ def make_dataset(fpath, vocab_dict, padding_mode = 'block', seq_length = 64):
         result_train_lst.append({'input_ids': input_ids, })
 
     return result_train_lst
+
+# inference utils
+
+def p_loop(model, x, t, clip_denoised=True, denoised_fn=None, model_kwargs=None, top_p=None,):
+    pass
+
+
+list_of_colors_from_red_to_blue = [f"\033[38;2;{r};0;{b}m" for r, b in zip(range(255, 0, -10), range(0, 255, 10))]
+
+def pprint_sentences(sentences: List[str], banner: str = "", sep: str = ""):
+    """
+    Given a list of sentences, prints them with a gradient of colors from red to blue
+    """
+    print()
+    print(f"\033[1m{'=' * 20} {banner} {'=' * 20}\033[0m")
+    for i, sentence in enumerate(sentences):
+        sentence_color = list_of_colors_from_red_to_blue[i]
+        if i == len(sentences) - 1:
+            print(f"\033[38;5;{sentence_color}{sentence}\033[0m")
+        else:
+            print(f"\033[38;5;{sentence_color}{sentence}\033[0m", end=sep)
+    print()
