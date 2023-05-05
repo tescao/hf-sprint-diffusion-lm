@@ -25,7 +25,7 @@ class Flax1DTransformer(nn.Module, FlaxModelMixin):
     self.position_embeddings = nn.Embed(self.config.max_position_embeddings, self.hidden_size)
     self.input_transformer = FlaxBertEncoder(self.config)
     self.layernorm = nn.LayerNorm()
-    #self.dropout = nn.Dropout(self.config.hidden_dropout_prob, deterministic = False)
+    self.dropout = nn.Dropout(self.config.hidden_dropout_prob, deterministic = False)
     self.output_down_proj = nn.Sequential([nn.Dense(self.hidden_size), nn.hard_tanh, nn.Dense(self.latent_dim)])
     self.lm_head = nn.Dense(self.vocab_size)
 

@@ -171,6 +171,8 @@ def main():
     # get datasets & data loaders (use total_train_batch_size, )
     # load models
     rng, rng_params = jax.random.split(rng)
+    rng, rng_dropout = jax.random.split(rng)
+
     diff_lm = dm.DiffusionLM(timesteps = args.timesteps,
                         latent_dim = args.latent_dim,
                         batch_size = args.batch_size,
@@ -180,7 +182,7 @@ def main():
     for b in train_dataloader:
       break                    
     
-    diff_lm_params = diff_lm.init(rng, b['input_ids'], rng_params)
+    diff_lm_params = diff_lm.init({'params' : rng, 'dropout' : rng_dropout}, b['input_ids'], rng_params)
 
     # init pipeline (for validation)
     # prep optimizer, LR scheduler

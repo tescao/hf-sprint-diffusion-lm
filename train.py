@@ -83,6 +83,7 @@ def main():
     # initialize
     rng = jax.random.PRNGKey(args.seed)
     rng, rng_params = jax.random.split(rng)
+    rng, rng_dropout = jax.random.split(rng)
 
     diff_lm = dm.DiffusionLM(timesteps = args.timesteps,
                         latent_dim = args.latent_dim,
@@ -93,7 +94,7 @@ def main():
     for b in train_dataloader:
       break                    
     
-    diff_lm_params = diff_lm.init(rng, b['input_ids'], rng_params) # jnp.ones((args.batch_size, args.seq_len, args.latent_dim))
+    diff_lm_params = diff_lm.init({'params' : rng, 'dropout' : rng_dropout}, b['input_ids'], rng_params) # jnp.ones((args.batch_size, args.seq_len, args.latent_dim))
 
     # prep for training
     tx = optax.adamw(learning_rate=args.learning_rate, b1=0.9, b2=0.999, eps=1e-6)
