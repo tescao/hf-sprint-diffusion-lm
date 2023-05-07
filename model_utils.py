@@ -77,7 +77,7 @@ def make_vocab(tokenizer = None, vocab_path = 'vocab.json', rewrite = False):
 
     return vocab_dict
 
-def make_dataset(fpath, vocab_dict, padding_mode = 'block', seq_length = 64):
+def make_dataset(fpath, vocab_dict, padding_mode = 'normal', seq_length = 64):
     sentence_lst = _load_from_path(fpath, get_tokenizer())
     print(f"Loaded {len(sentence_lst)} sentences")
 
@@ -97,6 +97,15 @@ def make_dataset(fpath, vocab_dict, padding_mode = 'block', seq_length = 64):
             k: [t[i: i + block_size] for i in range(0, total_length, block_size)]
             for k, t in concatenated_examples.items()
             }
+    elif padding_mode == 'normal':
+        padded_seqs = []
+        for seq in group_lst['input_ids']:
+            if len(seq) < seq_length:
+                seq = seq + 'PAD'*(seq_length - len(seq))
+            else:
+                seq = seq[:seq_length]
+        group_lst['input_ids'] = padded_seqs
+
     else:
         raise NotImplementedError
     

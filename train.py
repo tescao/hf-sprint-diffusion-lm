@@ -61,9 +61,12 @@ def parse_args():
     parser.add_argument('--epochs', type = int, default = 100)
     parser.add_argument('--timesteps', type = int, default = 2000)
     parser.add_argument('--prefix', type = str, default = 'test')
+    parser.add_argument('--padding_mode', type = str, default = 'normal')
+    parser.add_argument('--data_path', type = str, default = 'data/poems.txt')
     parser.add_argument('--learning_rate', type = float, default = 0.001)
     parser.add_argument('--latent_dim', type = int, default = 32)
     parser.add_argument('--seq_len', type = int, default = 64)
+    parser.add_argument("--rewrite_vocab", action="store_true",)
     
     parser.add_argument("--push_to_hub", action="store_true", help="Whether or not to push the model to the Hub.")
     parser.add_argument("--report_to", type=str, default="wandb", help=('The integration to report the results and logs to. Currently only supported platforms are `"wandb"`'))
@@ -104,11 +107,11 @@ def main():
     # load data
     #vocab_path = 'vocab.json'
     tokenizer = u.get_tokenizer()
-    vocab_dict = u.make_vocab(tokenizer = tokenizer, vocab_path = 'vocab.json')
+    vocab_dict = u.make_vocab(tokenizer = tokenizer, vocab_path = 'data/vocab.json', rewrite=args.rewrite_vocab)
 
-    train_dataset = u.make_dataset('data/e2e_data/src1_train.txt', vocab_dict, padding_mode = 'block', seq_length = args.seq_len)
-    test_dataset = u.make_dataset('data/e2e_data/src1_test.txt', vocab_dict, padding_mode = 'block', seq_length = args.seq_len)
-    val_dataset = u.make_dataset('data/e2e_data/src1_valid.txt', vocab_dict, padding_mode = 'block', seq_length = args.seq_len)
+    train_dataset = u.make_dataset(args.data_path, vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
+    # test_dataset = u.make_dataset('data/e2e_data/src1_test.txt', vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
+    # val_dataset = u.make_dataset('data/e2e_data/src1_valid.txt', vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
 
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -118,19 +121,19 @@ def main():
         batch_size=args.batch_size,
         drop_last=True)
 
-    test_dataloader = torch.utils.data.DataLoader(
-        test_dataset,
-        shuffle=False, 
-        collate_fn=collate_fn,
-        batch_size=args.batch_size,
-        drop_last=True)
+    # test_dataloader = torch.utils.data.DataLoader(
+    #     test_dataset,
+    #     shuffle=False, 
+    #     collate_fn=collate_fn,
+    #     batch_size=args.batch_size,
+    #     drop_last=True)
 
-    val_dataloader = torch.utils.data.DataLoader(
-        val_dataset,
-        shuffle=False, 
-        collate_fn=collate_fn,
-        batch_size=args.batch_size,
-        drop_last=True)
+    # val_dataloader = torch.utils.data.DataLoader(
+    #     val_dataset,
+    #     shuffle=False, 
+    #     collate_fn=collate_fn,
+    #     batch_size=args.batch_size,
+    #     drop_last=True)
 
 
     # initialize
