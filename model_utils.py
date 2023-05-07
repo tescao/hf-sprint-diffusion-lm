@@ -106,9 +106,12 @@ def make_dataset(fpath, vocab_dict, padding_mode = 'normal', seq_length = 64):
         padded_seqs = []
         for seq in group_lst['input_ids']:
             if len(seq) < seq_length:
-                seq = seq + ['PAD']*(seq_length - len(seq))
+                seq = seq + [vocab_dict['PAD']]*(seq_length - len(seq))
             else:
                 seq = seq[:seq_length]
+
+            assert len(seq) == seq_length
+            padded_seqs.append(seq)
         group_lst['input_ids'] = padded_seqs
 
     else:
