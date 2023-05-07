@@ -57,13 +57,13 @@ def _load_from_path(fpath, tokenizer):
     return sentence_lst
 
 
-def make_vocab(tokenizer = None, vocab_path = 'vocab.json', rewrite = False):
+def make_vocab(tokenizer = None, data_path = 'data/poems.txt', vocab_path = 'vocab.json', rewrite = False):
 
     if os.path.exists(vocab_path) and not rewrite:
         vocab_dict = json.load(open(vocab_path, 'r'))
         return vocab_dict
     
-    sentence_lst = _load_from_path('data/e2e_data/src1_train.txt', tokenizer)
+    sentence_lst = _load_from_path(data_path, tokenizer)
 
     counter = Counter()
     for input_ids in sentence_lst:
@@ -106,7 +106,7 @@ def make_dataset(fpath, vocab_dict, padding_mode = 'normal', seq_length = 64):
         padded_seqs = []
         for seq in group_lst['input_ids']:
             if len(seq) < seq_length:
-                seq = seq + 'PAD'*(seq_length - len(seq))
+                seq = seq + ['PAD']*(seq_length - len(seq))
             else:
                 seq = seq[:seq_length]
         group_lst['input_ids'] = padded_seqs

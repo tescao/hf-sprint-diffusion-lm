@@ -107,7 +107,7 @@ def main():
     # load data
     #vocab_path = 'vocab.json'
     tokenizer = u.get_tokenizer()
-    vocab_dict = u.make_vocab(tokenizer = tokenizer, vocab_path = 'data/vocab.json', rewrite=args.rewrite_vocab)
+    vocab_dict = u.make_vocab(tokenizer = tokenizer, data_path = args.data_path, vocab_path = 'data/vocab.json', rewrite=args.rewrite_vocab)
 
     train_dataset = u.make_dataset(args.data_path, vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
     # test_dataset = u.make_dataset('data/e2e_data/src1_test.txt', vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
