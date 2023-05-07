@@ -76,9 +76,8 @@ def make_vocab(tokenizer = None, data_path = 'data/poems.txt', vocab_path = 'voc
 
     print('Vocab size:', len(vocab_dict))
 
-    if rewrite:
-        with open(vocab_path, 'w') as f:
-            json.dump(vocab_dict, f)
+    with open(vocab_path, 'w') as f:
+        json.dump(vocab_dict, f)
 
     return vocab_dict
 
