@@ -41,13 +41,18 @@ def get_decoder(vocab_dict):
 
 
 def _load_from_path(fpath, tokenizer):
-    #fpath = './src1_test.txt'
     sentence_lst = []
-    with open(fpath, 'r', encoding = 'utf8') as ff:
-        for row in ff:
-            word_lst = row.split('||')[1]
-            word_lst = [x.text for x in tokenizer(word_lst)]
-            sentence_lst.append(word_lst)
+    if fpath == './src1_test.txt':
+        with open(fpath, 'r', encoding = 'utf8') as ff:
+            for row in ff:
+                word_lst = row.split('||')[1]
+                word_lst = [x.text for x in tokenizer(word_lst)]
+                sentence_lst.append(word_lst)
+    else:
+         with open(fpath, 'r', encoding = 'utf8') as ff:
+            for row in ff:
+                word_lst = [x.text for x in tokenizer(row)]
+                sentence_lst.append(word_lst)                      
 
     return sentence_lst
 
