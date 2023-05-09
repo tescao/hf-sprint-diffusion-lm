@@ -39,16 +39,15 @@ def get_tokenizer():
 def get_decoder(vocab_dict):
     return {v:k for k,v in vocab_dict.items()}
 
-
 def _load_from_path(fpath, tokenizer):
     sentence_lst = []
-    if fpath == './src1_test.txt':
+    if 'e2e' in fpath:
         with open(fpath, 'r', encoding = 'utf8') as ff:
             for row in ff:
                 word_lst = row.split('||')[1]
                 word_lst = [x.text for x in tokenizer(word_lst)]
                 sentence_lst.append(word_lst)
-    else:
+    elif 'poems' in fpath:
          with open(fpath, 'r', encoding = 'utf8') as ff:
             for row in ff:
                 word_lst = [x.text for x in tokenizer(row)]
@@ -57,7 +56,13 @@ def _load_from_path(fpath, tokenizer):
     return sentence_lst
 
 
-def make_vocab(tokenizer = None, data_path = 'data/poems.txt', vocab_path = 'vocab.json', rewrite = False):
+def make_vocab(tokenizer = None, data_path = 'data/poems/poems.txt', rewrite = False):
+
+    print('data_path', data_path)
+    data_path_ = data_path.split('/')
+    data_dir, fname = os.path.join(*data_path_[:-1]), data_path_[-1].split('.')[0]
+    vocab_path = f"{data_dir}/vocab_{fname}.json"
+    print('Vocab path', vocab_path)
 
     if os.path.exists(vocab_path) and not rewrite:
         vocab_dict = json.load(open(vocab_path, 'r'))

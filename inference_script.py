@@ -36,10 +36,10 @@ def parse_args():
     parser.add_argument('--model_dir', type = str, default = 'managed_ckpts') 
     parser.add_argument('--seed', type = int, default = 0)
     parser.add_argument('--batch_size', type = int, default = 64)
-    parser.add_argument('--diff_steps', type = int, default = 200)
-    parser.add_argument('--top_p', type = float, default = 0.8) # what's a good default?
+    parser.add_argument('--top_p', type = float, default = 0.9) # what's a good default?
     parser.add_argument('--num_samples', type = int, default = 10)
     parser.add_argument('--timesteps', type = int, default = 200) # use to init diffusion model for inference
+    parser.add_argument('--data_path', type = str, default = 'data/poems/poems.txt')
 
 
     args = parser.parse_args()
@@ -55,7 +55,7 @@ def main():
     train_args = Args()
 
     tokenizer = u.get_tokenizer()
-    vocab_dict = u.make_vocab(tokenizer = tokenizer, vocab_path = 'vocab.json')
+    vocab_dict = u.make_vocab(tokenizer = tokenizer, data_path = args.data_path, rewrite = False)
     vocab_dict_r = u.get_decoder(vocab_dict)
 
     orbax_checkpointer = PyTreeCheckpointer()
@@ -75,53 +75,72 @@ def main():
                         latent_dim = train_args.latent_dim,
                         batch_size = train_args.batch_size,
                         seq_len = train_args.seq_len,
-                        vocab_size = len(vocab_dict))
+                        vocab_size = len(vocab_dict),
+                        train = False)
     
     inp = jnp.ones(shape = (train_args.batch_size, train_args.seq_len), dtype = jnp.int32)
     diff_lm_init_params = diff_lm.init(rng, inp, rng_params)
+
+    print('randomly initialized')
+    print(diff_lm_init_params['params']['transformer']['input_transformer']['layer']['0']['attention']['output']['dense']['kernel'][0,:10])
+
 
     diff_lm.get_alphas() # initialized all values
 
     diff_lm_init_params = unfreeze(diff_lm_init_params)
 
-    diff_lm_init_params['params']['transformer']
+    # print('emb shape' , diff_lm_init_params['params']['embedder']['embedding'].shape)
+    # print('lm head shape' , diff_lm_init_params['params']['transformer']['lm_head']['kernel'].shape)
 
-    print('emb shape' , diff_lm_init_params['params']['embedder']['embedding'].shape)
-    print('lm head shape' , diff_lm_init_params['params']['transformer']['lm_head']['kernel'].shape)
 
-    print('diff_lm_init_params')
-    for k in diff_lm_init_params['params']['transformer']:
-        for kk in diff_lm_init_params['params']['transformer'][k]:
-            if not isinstance(diff_lm_init_params['params']['transformer'][k][kk], (FrozenDict, dict)):
-                diff_lm_init_params['params']['transformer'][k][kk] = state_dict['params']['params']['transformer'][k][kk][0]
-            else:
-                for kkk in diff_lm_init_params['params']['transformer'][k][kk]:
-                    if not isinstance(diff_lm_init_params['params']['transformer'][k][kk][kkk], (FrozenDict, dict)):
-                        diff_lm_init_params['params']['transformer'][k][kk][kkk] = state_dict['params']['params']['transformer'][k][kk][kkk][0]
-                    else:
-                        for kkkk in diff_lm_init_params['params']['transformer'][k][kk][kkk]:
-                            if not isinstance(diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk], (FrozenDict, dict)):
-                                diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk] = state_dict['params']['params']['transformer'][k][kk][kkk][kkkk][0]
-                            else:
-                                for kkkkk in diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk]:
-                                    if not isinstance(diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk], (FrozenDict, dict)):
-                                        diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk] = state_dict['params']['params']['transformer'][k][kk][kkk][kkkk][kkkkk][0]
-                                    else:
-                                        for kkkkkk in diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk]:
-                                            if not isinstance(diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk], (FrozenDict, dict)):
-                                                diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk] = state_dict['params']['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk][0]
-                                            else:
-                                                for kkkkkkk in diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk]:
-                                                    if not isinstance(diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk][kkkkkkk], (FrozenDict, dict)):
-                                                        diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk][kkkkkkk] = state_dict['params']['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk][kkkkkkk][0]
-                                                    else:
-                                                        print('last, unchanged ', diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk][kkkkkkk])                               
+    if len(state_dict['params']['params']['embedder']['embedding'].shape) > len(diff_lm_init_params['params']['embedder']['embedding'].shape ):
+
+        #init embedder
+        diff_lm_init_params['params']['embedder']['embedding'] = state_dict['params']['params']['embedder']['embedding'][0]
+
+        #init transformer
+
+        for k in diff_lm_init_params['params']['transformer']:
+            for kk in diff_lm_init_params['params']['transformer'][k]:
+                if not isinstance(diff_lm_init_params['params']['transformer'][k][kk], (FrozenDict, dict)):
+                    diff_lm_init_params['params']['transformer'][k][kk] = state_dict['params']['params']['transformer'][k][kk][0]
+                else:
+                    for kkk in diff_lm_init_params['params']['transformer'][k][kk]:
+                        if not isinstance(diff_lm_init_params['params']['transformer'][k][kk][kkk], (FrozenDict, dict)):
+                            diff_lm_init_params['params']['transformer'][k][kk][kkk] = state_dict['params']['params']['transformer'][k][kk][kkk][0]
+                        else:
+                            for kkkk in diff_lm_init_params['params']['transformer'][k][kk][kkk]:
+                                if not isinstance(diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk], (FrozenDict, dict)):
+                                    diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk] = state_dict['params']['params']['transformer'][k][kk][kkk][kkkk][0]
+                                else:
+                                    for kkkkk in diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk]:
+                                        if not isinstance(diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk], (FrozenDict, dict)):
+                                            diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk] = state_dict['params']['params']['transformer'][k][kk][kkk][kkkk][kkkkk][0]
+                                        else:
+                                            for kkkkkk in diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk]:
+                                                if not isinstance(diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk], (FrozenDict, dict)):
+                                                    diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk] = state_dict['params']['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk][0]
+                                                else:
+                                                    for kkkkkkk in diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk]:
+                                                        if not isinstance(diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk][kkkkkkk], (FrozenDict, dict)):
+                                                            diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk][kkkkkkk] = state_dict['params']['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk][kkkkkkk][0]
+                                                        else:
+                                                            print('last, unchanged ', diff_lm_init_params['params']['transformer'][k][kk][kkk][kkkk][kkkkk][kkkkkk][kkkkkkk])     
+    else:
+        #init embedder
+        diff_lm_init_params['params']['embedder']['embedding'] = state_dict['params']['params']['embedder']['embedding']
+
+        #init transformer
+        diff_lm_init_params['params']['transformer']
+        diff_lm_init_params['params']['transformer'] = state_dict['params']['params']['transformer']
 
 
     diff_lm_init_params = freeze(diff_lm_init_params)
 
 
-    print('diff_lm_init_params, initialized')
+    print('diff_lm_init_params, initialized from pre-trained')
+    print(diff_lm_init_params['params']['transformer']['input_transformer']['layer']['0']['attention']['output']['dense']['kernel'][0,:10])
+
 
     # testing
     # embeddings = diff_lm.apply(diff_lm_init_params, inp, method = diff_lm.call_embedder)
@@ -227,11 +246,16 @@ def main():
         all_samples.append(sample)
 
     arr = jnp.concatenate(all_samples, axis=0)
+    print(arr[0,:4,:10])
     arr = arr[:args.num_samples]
+
 
     logits = lm_head_fn(arr) # transformer
     print(logits.shape)
+    print(logits[0,:4,:10])
     cands, inds = jax.lax.top_k(logits, 1) 
+
+    print(inds.shape)
 
     decoded_sentences = []
     for seq in inds:
