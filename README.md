@@ -14,11 +14,11 @@ minimal implementation  https://github.com/madaan/minimal-text-diffusion
 
 - [ ] add sprint-related requirements (docstring, push to hub)  
 - [ ] add evaluation   
-- [ ] add inference pipeline
+- [ x] add inference pipeline
  
 - [ ] add reloading model to continue training  
 - [ ] add training stopping criteria  
 
-- [ ] add other datasets  
+- [ x] add other datasets  
 - [ ] add different tokenizers (SP)  
-- [ ] add other padding modes (only block now)  
+- [ x] add other padding modes (only block now)  
