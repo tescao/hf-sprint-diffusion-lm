@@ -62,7 +62,7 @@ def parse_args():
     parser.add_argument('--timesteps', type = int, default = 2000)
     parser.add_argument('--prefix', type = str, default = 'test')
     parser.add_argument('--padding_mode', type = str, default = 'normal')
-    parser.add_argument('--data_path', type = str, default = 'data/poems.txt')
+    parser.add_argument('--data_path', type = str, default = 'data/poems/poems.txt')
     parser.add_argument('--learning_rate', type = float, default = 0.001)
     parser.add_argument('--latent_dim', type = int, default = 32)
     parser.add_argument('--seq_len', type = int, default = 64)
@@ -107,8 +107,7 @@ def main():
     # load data
     #vocab_path = 'vocab.json'
     tokenizer = u.get_tokenizer()
-    vocab_dict = u.make_vocab(tokenizer = tokenizer, data_path = args.data_path, vocab_path = 'data/vocab.json', rewrite=args.rewrite_vocab)
-
+    vocab_dict = u.make_vocab(tokenizer = tokenizer, data_path = args.data_path, rewrite=args.rewrite_vocab)
     train_dataset = u.make_dataset(args.data_path, vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
     # test_dataset = u.make_dataset('data/e2e_data/src1_test.txt', vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
     # val_dataset = u.make_dataset('data/e2e_data/src1_valid.txt', vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
@@ -148,7 +147,8 @@ def main():
                         latent_dim = args.latent_dim,
                         batch_size = args.batch_size,
                         seq_len = args.seq_len,
-                        vocab_size = len(vocab_dict))
+                        vocab_size = len(vocab_dict),
+                        train = True)
 
     for b in train_dataloader:
       break                    
@@ -225,7 +225,7 @@ def main():
     logger.info(f"  Num Epochs = {args.epochs}")
     logger.info(f"  Instantaneous batch size per device = {total_train_batch_size}")
     logger.info(f"  Train batch per step = {args.batch_size // args.gradient_accumulation_steps}")
-    logger.info(f"  Otimization steps per epochs= {args.epochs // args.batch_size}")
+    logger.info(f"  Otimization steps per epoch = {dataset_length}")
 
     if jax.process_index() == 0  and args.report_to == "wandb":
         wandb.define_metric("*", step_metric="train/step")
