@@ -2,7 +2,7 @@
 
 Implementing controllabale text generation with diffusion for HuggingFace JAX/Diffusers community sprint.  
 
-References:
+References:  
 paper  https://arxiv.org/pdf/2205.14217.pdf  
 code  https://github.com/XiangLi1999/Diffusion-LM    
 minimal implementation  https://github.com/madaan/minimal-text-diffusion  
