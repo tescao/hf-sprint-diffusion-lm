@@ -34,6 +34,7 @@ class DiffusionLM(nn.Module):
     self.transformer = transformer.Flax1DTransformer(latent_dim = self.latent_dim, seq_len = self.seq_len, vocab_size = self.vocab_size, hidden_size = self.hidden_size, train = self.train)
     #self.scheduler = FlaxDDPMScheduler(num_train_timesteps = self.timesteps, beta_start = 0.0001, beta_end =  0.02, beta_schedule = self.beta_schedule)
     #self.noise_scheduler_state = self.scheduler.create_state()
+    self.lm_head = transformer.FlaxBertLMPredictionHead(hidden_size = self.hidden_size, vocab_size = self.vocab_size)
     self.get_alphas()
 
   
@@ -74,7 +75,8 @@ class DiffusionLM(nn.Module):
   #   return loss.mean()
 
   def get_logits(self, x):
-    return self.transformer.lm_head(x)
+    shared_embedding = self.embedder.variables['params']['embedding']
+    return self.lm_head(x, shared_embedding = shared_embedding.T)
 
   def __call__(self, x, rng : jax.random.PRNGKey = None):
 
@@ -92,8 +94,6 @@ class DiffusionLM(nn.Module):
     noise = jax.random.normal(noise_rng, x_start.shape)
       
     x_t = self.q_sample(x_start, t, noise=noise) # (16, 64, 32) reparametrization trick.
-
-    #get_logits = lambda x: self.transformer.lm_head(x)
 
     terms = {}
 
@@ -223,6 +223,7 @@ class DiffusionLM(nn.Module):
     assert t.shape == (B,)
 
     model_output = self.transformer(x, t, **model_kwargs) # t -> self._scale_timesteps(t)
+    print('raw transformer output', model_output[:2, :4, :4])
     model_variance = u.extract_into_tensor(self.posterior_variance, t, x.shape)
     model_log_variance = u.extract_into_tensor(self.posterior_log_variance_clipped, t, x.shape)
 
@@ -265,6 +266,8 @@ class DiffusionLM(nn.Module):
                 - 'sample': a random sample from the model.
                 - 'pred_xstart': a prediction of x_0.
       """
+
+
       out = self.p_mean_variance(
           x,
           t,
@@ -273,12 +276,17 @@ class DiffusionLM(nn.Module):
           model_kwargs=model_kwargs,
       )
 
-      if top_p is not None and top_p > 0:
+      rng, noise_rng = jax.random.split(rng)
+      noise = jax.random.normal(noise_rng, x.shape)
 
-        rng, noise_rng = jax.random.split(rng)
-         
-        noise = jax.random.normal(noise_rng, x.shape)
+      print('p_sample')
+      print('t', t[0])
+      print('x', x[:2, :4, :4])
+      print('noise', noise[:2, :4, :4]) 
+      print('out', out['mean'][:2, :4, :4], out['variance'][:2, :4, :4])
 
+      #if top_p is not None and top_p > 0:
+    
         # doesn't seem to work the same in JAX
 
         # def pos_noise(noise, noise_rng):
@@ -294,17 +302,19 @@ class DiffusionLM(nn.Module):
 
         # noise = pos_noise(noise, noise_rng)
 
-        # no noise when t == 0
-        t = jnp.where(t != 0, 1.0, 0.0)
-        nonzero_mask = jnp.reshape(t, (-1, *([1]* (len(x.shape)-1) )))
+      t = jnp.where(t != 0, 1.0, 0.0) # no noise when t == 0
+      print('nonzero_mask', t[0])
+      nonzero_mask = jnp.reshape(t, (-1, *([1]* (len(x.shape)-1) )))
 
-        sample = out["mean"] + nonzero_mask * jax.lax.exp(0.5 * out["log_variance"]) * noise
+      sample = out["mean"] + nonzero_mask * jax.lax.exp(0.5 * out["log_variance"]) * noise
 
-        return {
-            "sample": sample,
-            "pred_xstart": out["pred_xstart"],
-            "greedy_mean": out["mean"],
-            "out": out,}
+      print('final sample', sample[:2, :4, :4])
+
+      return {
+          "sample": sample,
+          "pred_xstart": out["pred_xstart"],
+          "greedy_mean": out["mean"],
+          "out": out,}
       
 
 
