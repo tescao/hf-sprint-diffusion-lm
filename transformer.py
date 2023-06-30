@@ -57,7 +57,7 @@ class Flax1DTransformer(nn.Module, FlaxModelMixin):
 
 class FlaxBertPredictionHeadTransform(nn.Module):
   dtype : jnp.dtype = jnp.float32
-  hidden_size : int = 768
+  hidden_size : int = 32
   layer_norm_eps : float = 1e-6
 
   def setup(self):
@@ -73,7 +73,7 @@ class FlaxBertPredictionHeadTransform(nn.Module):
 
 class FlaxBertLMPredictionHead(nn.Module):
     dtype : jnp.dtype = jnp.float32
-    hidden_size : int = 768
+    hidden_size : int = 32
     bias_init : Callable[..., np.ndarray] = jax.nn.initializers.zeros
     vocab_size : int = 333
 
@@ -83,10 +83,10 @@ class FlaxBertLMPredictionHead(nn.Module):
         self.bias = self.param("bias", self.bias_init, (self.vocab_size,))
 
     def __call__(self, hidden_states, shared_embedding=None):
-        hidden_states = self.transform(hidden_states)
+        #hidden_states = self.transform(hidden_states)
 
         if shared_embedding is not None:
-            hidden_states = self.decoder.apply({"params": {"kernel": shared_embedding.T}}, hidden_states)
+            hidden_states = self.decoder.apply({"params": {"kernel": shared_embedding}}, hidden_states)
         else:
             hidden_states = self.decoder(hidden_states)
 

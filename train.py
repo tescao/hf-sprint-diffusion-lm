@@ -22,7 +22,6 @@ from diffusers.utils import check_min_version, is_wandb_available
 
 import jax
 import jax.numpy as jnp
-from flax.training import train_state, checkpoints
 import optax
 
 from flax import jax_utils
@@ -167,7 +166,8 @@ def main():
             batch = jax.tree_map(lambda x: x.reshape((grad_steps, x.shape[0] // grad_steps) + x.shape[1:]), batch) # split into mini-batches
 
         def compute_loss(params, batch, rng):
-            batch_losses = diff_lm.apply(params, batch, rng)
+            rng, rng_dropout = jax.random.split(rng)
+            batch_losses = diff_lm.apply(params, batch, rng, rngs = {'dropout' : rng_dropout})
             return batch_losses.mean()
 
         grad_fn = jax.value_and_grad(compute_loss)

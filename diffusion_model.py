@@ -34,7 +34,7 @@ class DiffusionLM(nn.Module):
     self.transformer = transformer.Flax1DTransformer(latent_dim = self.latent_dim, seq_len = self.seq_len, vocab_size = self.vocab_size, hidden_size = self.hidden_size, train = self.train)
     #self.scheduler = FlaxDDPMScheduler(num_train_timesteps = self.timesteps, beta_start = 0.0001, beta_end =  0.02, beta_schedule = self.beta_schedule)
     #self.noise_scheduler_state = self.scheduler.create_state()
-    self.lm_head = transformer.FlaxBertLMPredictionHead(hidden_size = self.hidden_size, vocab_size = self.vocab_size)
+    self.lm_head = transformer.FlaxBertLMPredictionHead(hidden_size = self.latent_dim, vocab_size = self.vocab_size)
     self.get_alphas()
 
   
