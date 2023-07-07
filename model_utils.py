@@ -3,6 +3,7 @@ import json
 from typing import List
 import jax
 import jax.numpy as jnp
+import jax_metrics as jm
 from spacy.lang.en import English
 from collections import Counter, defaultdict
 
@@ -20,16 +21,11 @@ def mean_flat(arr):
 
 
 def crossEntropy(preds, targets,  softmax = True):
-    # raw preds and targets
 
-    batch_size, seq_len, vocab_size = preds.shape
-    preds = preds.reshape(-1, vocab_size)
-    if softmax:
-        preds = jax.nn.softmax(preds, axis = -1)
+    crossentropy = jm.losses.Crossentropy(reduction = jm.losses.Reduction.NONE)
+    loss = crossentropy(target=targets, preds=preds)
 
-    res = preds * jax.nn.one_hot(targets.reshape(-1,), vocab_size)
-    return -jnp.mean(res.reshape(batch_size, -1), axis = -1)
-
+    return jnp.mean(loss, axis = -1)
 
 def get_tokenizer():
     nlp = English()

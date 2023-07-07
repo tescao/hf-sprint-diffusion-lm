@@ -283,7 +283,7 @@ class DiffusionLM(nn.Module):
       print('t', t[0])
       print('x', x[:2, :4, :4])
       print('noise', noise[:2, :4, :4]) 
-      print('out', out['mean'][:2, :4, :4], out['variance'][:2, :4, :4])
+      print('out', out['mean'][:2, :4, :4], out['variance'][:2, :4, :4]) # mean is derived from the outtput of the transformer
 
       #if top_p is not None and top_p > 0:
     
@@ -343,10 +343,12 @@ class DiffusionLM(nn.Module):
     for i in indices:
         t = np.array([i] * shape[0])
 
+        rng, noise_rng = jax.random.split(rng)
+
         out = self.p_sample(
             data,
             t,
-            rng,
+            noise_rng,
             clip_denoised=clip_denoised,
             denoised_fn=denoised_fn,
             model_kwargs=model_kwargs,
