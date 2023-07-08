@@ -110,9 +110,11 @@ class DiffusionLM(nn.Module):
 
     decoder_nll = self.token_discrete_loss(x_start, x)
 
-    terms["loss"] = terms["mse"] + (decoder_nll + tT_loss)
-
-    return terms["loss"]
+    terms["tT_loss"] = tT_loss.mean()
+    terms["decoder_nll"] = decoder_nll.mean()
+    terms["mse"] = terms["mse"].mean()
+    
+    return terms
 
   def schedule_sampler(self, rng, bsz):
 

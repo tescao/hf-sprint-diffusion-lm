@@ -12,6 +12,7 @@ from tqdm.auto import tqdm
 import numpy as np
 import torch
 import torch.utils.checkpoint
+from collections import defaultdict
 
 import transformers
 
@@ -167,10 +168,10 @@ def main():
 
         def compute_loss(params, batch, rng):
             rng, rng_dropout = jax.random.split(rng)
-            batch_losses = diff_lm.apply(params, batch, rng, rngs = {'dropout' : rng_dropout})
-            return batch_losses.mean()
+            losses_dict = diff_lm.apply(params, batch, rng, rngs = {'dropout' : rng_dropout}) # dict
+            return jnp.array([v for k,v in losses_dict.items()]).sum(), losses_dict # int, dict
 
-        grad_fn = jax.value_and_grad(compute_loss)
+        grad_fn = jax.value_and_grad(compute_loss, has_aux = True)
 
         ## for grad accumulation ##
         def get_minibatch(batch, grad_idx):
@@ -182,11 +183,11 @@ def main():
             # create minibatch for the grad step
             minibatch = get_minibatch(batch, grad_idx) if grad_idx is not None else batch
             sample_rng, train_rng = jax.random.split(train_rng, 2)
-            loss, grad = grad_fn(state.params, minibatch, sample_rng) # why does it need an rng?
-            return loss, grad, train_rng
+            (loss, loss_dict), grad = grad_fn(state.params, minibatch, sample_rng) # int, tensor
+            return loss, loss_dict, grad, train_rng
         
         if args.gradient_accumulation_steps == 1:
-            loss, grads, new_train_rng = loss_and_grad(None, rng)
+            loss, loss_dict, grads, new_train_rng = loss_and_grad(None, rng)
         else:
             init_loss_grad_rng = (
                 0.0,  # initial value for cumul_loss
@@ -196,7 +197,7 @@ def main():
 
             def cumul_grad_step(grad_idx, loss_grad_rng):
                 cumul_loss, cumul_grad, train_rng = loss_grad_rng
-                loss, grad, new_train_rng = loss_and_grad(grad_idx, train_rng)
+                loss, loss_dict, grad, new_train_rng = loss_and_grad(grad_idx, train_rng)
                 cumul_loss, cumul_grad = jax.tree_map(jnp.add, (cumul_loss, cumul_grad), (loss, grad))
                 return cumul_loss, cumul_grad, new_train_rng
 
@@ -210,10 +211,9 @@ def main():
 
         ## done with grad accumulation ##
 
-        #loss, grads, new_train_rng = loss_and_grad(state.params, batch, rng)
         new_state = state.apply_gradients(grads=grads)
 
-        return new_state, new_train_rng, loss
+        return new_state, new_train_rng, loss, loss_dict
 
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
     total_train_batch_size = args.batch_size
@@ -257,7 +257,7 @@ def main():
     for epoch in epochs:
 
         train_metrics = []
-        train_metric = None
+        train_metrics_dict = defaultdict(list)
 
         steps_per_epoch = (len(train_dataset) // total_train_batch_size)
 
@@ -269,10 +269,14 @@ def main():
             disable=jax.process_index() > 0,)
 
         for batch in train_dataloader:
-            state, train_rng, loss = train_step(state, batch['input_ids'], train_rng)
+            state, train_rng, loss, loss_dict = train_step(state, batch['input_ids'], train_rng)
 
             train_metrics.append(loss)
             train_step_progress_bar.update(1)
+
+            train_metrics_dict['mse'].append(loss_dict['mse'])
+            train_metrics_dict['tT_loss'].append(loss_dict['tT_loss'])
+            train_metrics_dict['decoder_nll'].append(loss_dict['decoder_nll'])
 
             global_step += 1
             if global_step >= max_train_steps:
@@ -281,17 +285,22 @@ def main():
             if global_step % args.logging_steps == 0 and jax.process_index() == 0:
                 if args.report_to == "wandb":
                     train_metrics = jax.tree_util.tree_map(lambda *m: jnp.array(m).mean(), *train_metrics)
+                    for k, v in train_metrics_dict.items():
+                        train_metrics_dict[k] = jax.tree_util.tree_map(lambda *m: jnp.array(m).mean(), *v)
+
                     wandb.log(
                         {
                             "walltime": time.monotonic() - t00,
                             "train/step": global_step,
                             "train/epoch": global_step / dataset_length,
                             "train/steps_per_sec": (global_step - step0) / (time.monotonic() - t0),
-                            **{"train/loss": train_metrics}, # **{f"train/{k}": v for k, v in train_metrics.items()}
+                            "train/loss": train_metrics,
+                            **{f"train/{k}": v for k, v in train_metrics_dict.items()},
                         }
                     )
                 t0, step0 = time.monotonic(), global_step
                 train_metrics = []
+                train_metrics_dict = defaultdict(list)
 
             if global_step % args.checkpointing_steps == 0 and jax.process_index() == 0:
                 checkpoint_manager.save(global_step, state, save_kwargs = {"save_args": save_args})
