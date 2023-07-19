@@ -250,11 +250,13 @@ def main():
 
     orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
     options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=2, create=True)
-    checkpoint_manager = orbax.checkpoint.CheckpointManager('managed_ckpts', orbax_checkpointer, options)
+    checkpoint_manager = orbax.checkpoint.CheckpointManager(wandb.run.dir, orbax_checkpointer, options) # 'managed_ckpts'
     save_args = orbax_utils.save_args_from_target(state)
 
     models_dir = 'models'
     for epoch in epochs:
+
+        #print(f'WANDB DIR: {wandb.run.dir}')
 
         train_metrics = []
         train_metrics_dict = defaultdict(list)

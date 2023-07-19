@@ -91,7 +91,7 @@ class DiffusionLM(nn.Module):
     x_start = self.get_x_start(x_start_mean, std, noise_rng)
 
     rng, noise_rng2 = jax.random.split(noise_rng)
-    noise = jax.random.normal(noise_rng, x_start.shape)
+    noise = jax.random.normal(noise_rng2, x_start.shape)
       
     x_t = self.q_sample(x_start, t, noise=noise) # (16, 64, 32) reparametrization trick.
 
@@ -103,7 +103,7 @@ class DiffusionLM(nn.Module):
 
     t0_mask = t == 0
     t0_loss = u.mean_flat((x_start_mean - model_output) ** 2)
-    terms["mse"] = jnp.where(t0_mask, t0_loss, terms["mse"])
+    terms["mse"] = jnp.where(t0_mask, t0_loss, terms["mse"]) # if t=0, predict x_start_mean, for all other steps predict x_start
 
     out_mean, _, _ = self._q_mean_variance(x_start, jnp.array([self.timesteps - 1]))
     tT_loss = u.mean_flat(out_mean**2)
