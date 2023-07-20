@@ -27,6 +27,8 @@ class DiffusionLM(nn.Module):
   beta_schedule : str = 'linear'
   vocab_size : int = 333
   train : bool = True
+  vocab : dict = None
+  vocab_r : dict = None
 
   def setup(self):
 
@@ -84,11 +86,14 @@ class DiffusionLM(nn.Module):
 
     t, weights = self.schedule_sampler(sample_rng, x.shape[0])
 
-    x_start_mean = self.embedder(x)
+    x_start_mean = self.embedder(x) # get_embeds
+
     std = u.extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, jnp.array([0]), x_start_mean.shape)
 
     rng, noise_rng = jax.random.split(rng)
     x_start = self.get_x_start(x_start_mean, std, noise_rng)
+
+    #print(f'x_start\n {x_start[0,:4,:4]}')
 
     rng, noise_rng2 = jax.random.split(noise_rng)
     noise = jax.random.normal(noise_rng2, x_start.shape)
@@ -97,7 +102,9 @@ class DiffusionLM(nn.Module):
 
     terms = {}
 
-    model_output = self.transformer(x_t, t)
+    model_output = self.transformer(x_t, t)  # _scale_timesteps(t)
+
+    #print(f'model_output\n{ model_output[0,:4,:4]}') # jax.debug.
 
     terms["mse"] = u.mean_flat((x_start - model_output) ** 2)
 
@@ -109,6 +116,9 @@ class DiffusionLM(nn.Module):
     tT_loss = u.mean_flat(out_mean**2)
 
     decoder_nll = self.token_discrete_loss(x_start, x)
+
+    terms['loss'] = terms["mse"] + (decoder_nll + tT_loss)
+    terms['loss'] = (terms["loss"] * weights).mean()
 
     terms["tT_loss"] = tT_loss.mean()
     terms["decoder_nll"] = decoder_nll.mean()
@@ -304,13 +314,24 @@ class DiffusionLM(nn.Module):
 
         # noise = pos_noise(noise, noise_rng)
 
-      t = jnp.where(t != 0, 1.0, 0.0) # no noise when t == 0
-      print('nonzero_mask', t[0])
-      nonzero_mask = jnp.reshape(t, (-1, *([1]* (len(x.shape)-1) )))
+      t_mask = jnp.where(t != 0, 1.0, 0.0) # no noise when t == 0
+      print('nonzero_mask', t_mask[0])
+      nonzero_mask = jnp.reshape(t_mask, (-1, *([1]* (len(x.shape)-1) )))
 
       sample = out["mean"] + nonzero_mask * jax.lax.exp(0.5 * out["log_variance"]) * noise
 
       print('final sample', sample[:2, :4, :4])
+
+      if t[0] == 1:
+        print('Decoded sample at t=1')
+        logits = self.get_logits(sample)
+        # print(logits.shape)
+        # print(logits[0,:4,:10])
+        cands, inds = jax.lax.top_k(logits, 1)
+        for seq in inds:
+            decoded_sentence =  " ".join([self.vocab_r[x.item()] for x in seq])
+            print(decoded_sentence)
+
 
       return {
           "sample": sample,

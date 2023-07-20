@@ -151,6 +151,8 @@ def main():
                         train = True)
 
     for b in train_dataloader:
+    #   for s in b['input_ids']:
+    #       print(np.where(s == 3))
       break                    
     
     diff_lm_params = diff_lm.init({'params' : rng, 'dropout' : rng_dropout}, b['input_ids'], rng_params) # jnp.ones((args.batch_size, args.seq_len, args.latent_dim))
@@ -169,7 +171,7 @@ def main():
         def compute_loss(params, batch, rng):
             rng, rng_dropout = jax.random.split(rng)
             losses_dict = diff_lm.apply(params, batch, rng, rngs = {'dropout' : rng_dropout}) # dict
-            return jnp.array([v for k,v in losses_dict.items()]).sum(), losses_dict # int, dict
+            return losses_dict['loss'], losses_dict # int, dict
 
         grad_fn = jax.value_and_grad(compute_loss, has_aux = True)
 
@@ -297,7 +299,7 @@ def main():
                             "train/epoch": global_step / dataset_length,
                             "train/steps_per_sec": (global_step - step0) / (time.monotonic() - t0),
                             "train/loss": train_metrics,
-                            **{f"train/{k}": v for k, v in train_metrics_dict.items()},
+                            **{f"train/{k}": train_metrics_dict[v] for k in ['mse',  'tT_loss', 'decoder_nll']},
                         }
                     )
                 t0, step0 = time.monotonic(), global_step
