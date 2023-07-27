@@ -100,7 +100,7 @@ def main():
         vocab_size = tokenizer.vocab_size
 
         train_dataset = load_dataset("text", data_files = args.data_path)
-        train_dataset = train_dataset.map(lambda sample : tokenizer(sample['text'], padding='max_length', truncation=True, max_length = 512), batched = True)
+        train_dataset = train_dataset.map(lambda sample : tokenizer(sample['text'], padding='max_length', truncation=True, max_length = args.seq_len), batched = True)
 
         def collate_fn(examples):
             #batch = {'text' : [ex['text'] for ex in examples]}

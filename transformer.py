@@ -52,7 +52,7 @@ class Flax1DTransformer(nn.Module, FlaxModelMixin):
     emb = self.time_embed(self.timestep_embedding(timesteps))
     emb = jnp.broadcast_to(jnp.expand_dims(emb, 1), x.shape)
 
-    position_ids = self.position_ids[:, : self.config.max_position_embeddings ]
+    position_ids = self.position_ids[:, :self.seq_len]
 
     # x [bsz, 512, 768]
     input_emb = self.position_embeddings(position_ids) + x + emb
