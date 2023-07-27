@@ -21,11 +21,10 @@ import model_utils as u
 class DiffusionLM(nn.Module):
   timesteps : int = 2000
   latent_dim : int = 32
-  hidden_size : int = 768
   batch_size : int = 16
   seq_len : int = 64
-  beta_schedule : str = 'linear'
   vocab_size : int = 333
+  use_pretrained : bool = True
   train : bool = True
   vocab : dict = None
   vocab_r : dict = None
@@ -33,7 +32,7 @@ class DiffusionLM(nn.Module):
   def setup(self):
 
     self.embedder = nn.Embed(self.vocab_size, self.latent_dim)
-    self.transformer = transformer.Flax1DTransformer(latent_dim = self.latent_dim, seq_len = self.seq_len, vocab_size = self.vocab_size, hidden_size = self.hidden_size, train = self.train)
+    self.transformer = transformer.Flax1DTransformer(latent_dim = self.latent_dim, seq_len = self.seq_len, vocab_size = self.vocab_size, use_pretrained = self.use_pretrained, train = self.train)
     #self.scheduler = FlaxDDPMScheduler(num_train_timesteps = self.timesteps, beta_start = 0.0001, beta_end =  0.02, beta_schedule = self.beta_schedule)
     #self.noise_scheduler_state = self.scheduler.create_state()
     self.lm_head = transformer.FlaxBertLMPredictionHead(hidden_size = self.latent_dim, vocab_size = self.vocab_size)
@@ -84,9 +83,11 @@ class DiffusionLM(nn.Module):
 
     rng, sample_rng = jax.random.split(rng)
 
-    t, weights = self.schedule_sampler(sample_rng, x.shape[0])
+    x_shape = x['input_ids'].shape
 
-    x_start_mean = self.embedder(x) # get_embeds
+    t, weights = self.schedule_sampler(sample_rng, x_shape[0])
+
+    x_start_mean = self.embedder(x['input_ids']) # get_embeds
 
     std = u.extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, jnp.array([0]), x_start_mean.shape)
 
@@ -115,7 +116,9 @@ class DiffusionLM(nn.Module):
     out_mean, _, _ = self._q_mean_variance(x_start, jnp.array([self.timesteps - 1]))
     tT_loss = u.mean_flat(out_mean**2)
 
-    decoder_nll = self.token_discrete_loss(x_start, x)
+    decoder_nll = self.token_discrete_loss(x_start, x['input_ids'])
+
+    #print('decoder_nll', decoder_nll.shape, decoder_nll)
 
     terms['loss'] = terms["mse"] + (decoder_nll + tT_loss)
     terms['loss'] = (terms["loss"] * weights).mean()

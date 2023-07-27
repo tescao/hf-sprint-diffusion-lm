@@ -17,7 +17,7 @@ from collections import defaultdict
 import transformers
 
 from datasets import load_dataset, load_from_disk
-from transformers import set_seed
+from transformers import set_seed, AutoTokenizer, FlaxBertModel
 from huggingface_hub import create_repo, upload_folder
 from diffusers.utils import check_min_version, is_wandb_available
 
@@ -26,7 +26,7 @@ import jax.numpy as jnp
 import optax
 
 from flax import jax_utils
-from flax.core.frozen_dict import unfreeze
+from flax.core.frozen_dict import freeze, unfreeze
 from flax.training import train_state, checkpoints
 from flax.training.common_utils import shard
 from flax.training import orbax_utils
@@ -44,15 +44,6 @@ print(f"Device count : {jax.device_count()}")
 
 logger = logging.getLogger(__name__)
 
-def collate_fn(examples):
-    input_ids = torch.stack([torch.tensor(example["input_ids"]) for example in examples]).numpy()
-    #hidden_states = jnp.stack([example["hidden_states"] for example in examples])
-    batch = {
-        "input_ids": input_ids,
-            }
-    return batch
-
-
 def parse_args():
     parser = argparse.ArgumentParser()
 
@@ -67,7 +58,8 @@ def parse_args():
     parser.add_argument('--latent_dim', type = int, default = 32)
     parser.add_argument('--seq_len', type = int, default = 64)
     parser.add_argument("--rewrite_vocab", action="store_true",)
-    
+    parser.add_argument("--use_pretrained", action="store_true",)
+
     parser.add_argument("--push_to_hub", action="store_true", help="Whether or not to push the model to the Hub.")
     parser.add_argument("--report_to", type=str, default="wandb", help=('The integration to report the results and logs to. Currently only supported platforms are `"wandb"`'))
     parser.add_argument('--output_dir', type = str, default = 'test') 
@@ -103,36 +95,67 @@ def main():
             config=args,
         )
 
+    if args.use_pretrained:
+        tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
+        vocab_size = tokenizer.vocab_size
 
-    # load data
+        train_dataset = load_dataset("text", data_files = args.data_path)
+        train_dataset = train_dataset.map(lambda sample : tokenizer(sample['text'], padding='max_length', truncation=True, max_length = 512), batched = True)
+
+        def collate_fn(examples):
+            #batch = {'text' : [ex['text'] for ex in examples]}
+            batch = {}
+            for k in ['input_ids', 'token_type_ids', 'attention_mask']:
+                vals = torch.stack([torch.tensor(example[k]) for example in examples]).numpy()
+                batch[k] = vals
+            return batch
+        
+        train_dataset = train_dataset['train']
+
+        train_dataloader = torch.utils.data.DataLoader(
+            train_dataset,
+            shuffle=True, # false if streaming dataset
+            collate_fn=collate_fn,
+            batch_size=args.batch_size,
+            drop_last=True)
+
+    else:
     #vocab_path = 'vocab.json'
-    tokenizer = u.get_tokenizer()
-    vocab_dict = u.make_vocab(tokenizer = tokenizer, data_path = args.data_path, rewrite=args.rewrite_vocab)
-    train_dataset = u.make_dataset(args.data_path, vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
-    # test_dataset = u.make_dataset('data/e2e_data/src1_test.txt', vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
-    # val_dataset = u.make_dataset('data/e2e_data/src1_valid.txt', vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
+        tokenizer = u.get_tokenizer()
+        vocab_dict = u.make_vocab(tokenizer = tokenizer, data_path = args.data_path, rewrite=args.rewrite_vocab)
+        vocab_size = len(vocab_dict)
 
+        train_dataset = u.make_dataset(args.data_path, vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
+        # test_dataset = u.make_dataset('data/e2e_data/src1_test.txt', vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
+        # val_dataset = u.make_dataset('data/e2e_data/src1_valid.txt', vocab_dict, padding_mode = args.padding_mode, seq_length = args.seq_len)
 
-    train_dataloader = torch.utils.data.DataLoader(
-        train_dataset,
-        shuffle=True, # false if streaming dataset
-        collate_fn=collate_fn,
-        batch_size=args.batch_size,
-        drop_last=True)
+        def collate_fn(examples):
+            input_ids = torch.stack([torch.tensor(example["input_ids"]) for example in examples]).numpy()
+            batch = {
+                "input_ids": input_ids,
+                    }
+            return batch
 
-    # test_dataloader = torch.utils.data.DataLoader(
-    #     test_dataset,
-    #     shuffle=False, 
-    #     collate_fn=collate_fn,
-    #     batch_size=args.batch_size,
-    #     drop_last=True)
+        train_dataloader = torch.utils.data.DataLoader(
+            train_dataset,
+            shuffle=True, # false if streaming dataset
+            collate_fn=collate_fn,
+            batch_size=args.batch_size,
+            drop_last=True)
 
-    # val_dataloader = torch.utils.data.DataLoader(
-    #     val_dataset,
-    #     shuffle=False, 
-    #     collate_fn=collate_fn,
-    #     batch_size=args.batch_size,
-    #     drop_last=True)
+        # test_dataloader = torch.utils.data.DataLoader(
+        #     test_dataset,
+        #     shuffle=False, 
+        #     collate_fn=collate_fn,
+        #     batch_size=args.batch_size,
+        #     drop_last=True)
+
+        # val_dataloader = torch.utils.data.DataLoader(
+        #     val_dataset,
+        #     shuffle=False, 
+        #     collate_fn=collate_fn,
+        #     batch_size=args.batch_size,
+        #     drop_last=True)
 
 
     # initialize
@@ -143,19 +166,38 @@ def main():
     rng, rng_params = jax.random.split(rng)
     rng, rng_dropout = jax.random.split(rng)
 
+    if args.use_pretrained:
+        pretrain_model = FlaxBertModel.from_pretrained('bert-base-cased')
+        args.latent_dim = pretrain_model.config.hidden_size
+
+
     diff_lm = dm.DiffusionLM(timesteps = args.timesteps,
                         latent_dim = args.latent_dim,
                         batch_size = args.batch_size,
                         seq_len = args.seq_len,
-                        vocab_size = len(vocab_dict),
+                        vocab_size = vocab_size,
+                        use_pretrained = args.use_pretrained,
                         train = True)
 
+
     for b in train_dataloader:
-    #   for s in b['input_ids']:
-    #       print(np.where(s == 3))
-      break                    
+      #print(b)
+      # for s in b['input_ids']:
+      # print(np.where(s == 3))
+      break 
+               
     
-    diff_lm_params = diff_lm.init({'params' : rng, 'dropout' : rng_dropout}, b['input_ids'], rng_params) # jnp.ones((args.batch_size, args.seq_len, args.latent_dim))
+    diff_lm_params = diff_lm.init({'params' : rng, 'dropout' : rng_dropout}, b, rng_params) # jnp.ones((args.batch_size, args.seq_len, args.latent_dim))
+
+    if args.use_pretrained:
+        # init some weights
+
+        diff_lm_params = unfreeze(diff_lm_params)
+        diff_lm_params['params']['transformer']['input_transformer'] = pretrain_model.params['encoder']
+        diff_lm_params['params']['embedder']['embedding'] = pretrain_model.params['embeddings']['word_embeddings']['embedding']
+        diff_lm_params['params']['transformer']['position_embeddings']['embedding'] = pretrain_model.params['embeddings']['position_embeddings']['embedding']
+        diff_lm_params = freeze(diff_lm_params)
+
 
     # prep for training
     tx = optax.adamw(learning_rate=args.learning_rate, b1=0.9, b2=0.999, eps=1e-6)
@@ -255,7 +297,6 @@ def main():
     checkpoint_manager = orbax.checkpoint.CheckpointManager(wandb.run.dir, orbax_checkpointer, options) # 'managed_ckpts'
     save_args = orbax_utils.save_args_from_target(state)
 
-    models_dir = 'models'
     for epoch in epochs:
 
         #print(f'WANDB DIR: {wandb.run.dir}')
@@ -273,7 +314,7 @@ def main():
             disable=jax.process_index() > 0,)
 
         for batch in train_dataloader:
-            state, train_rng, loss, loss_dict = train_step(state, batch['input_ids'], train_rng)
+            state, train_rng, loss, loss_dict = train_step(state, batch, train_rng)
 
             train_metrics.append(loss)
             train_step_progress_bar.update(1)
@@ -299,7 +340,7 @@ def main():
                             "train/epoch": global_step / dataset_length,
                             "train/steps_per_sec": (global_step - step0) / (time.monotonic() - t0),
                             "train/loss": train_metrics,
-                            **{f"train/{k}": train_metrics_dict[v] for k in ['mse',  'tT_loss', 'decoder_nll']},
+                            **{f"train/{k}": train_metrics_dict[k] for k in ['mse',  'tT_loss', 'decoder_nll']},
                         }
                     )
                 t0, step0 = time.monotonic(), global_step
