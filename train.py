@@ -105,7 +105,8 @@ def main():
         def collate_fn(examples):
             #batch = {'text' : [ex['text'] for ex in examples]}
             batch = {}
-            for k in ['input_ids', 'token_type_ids', 'attention_mask']:
+            #for k in ['input_ids', 'token_type_ids', 'attention_mask']:
+            for k in ['input_ids']:
                 vals = torch.stack([torch.tensor(example[k]) for example in examples]).numpy()
                 batch[k] = vals
             return batch
@@ -197,6 +198,9 @@ def main():
         diff_lm_params['params']['embedder']['embedding'] = pretrain_model.params['embeddings']['word_embeddings']['embedding']
         diff_lm_params['params']['transformer']['position_embeddings']['embedding'] = pretrain_model.params['embeddings']['position_embeddings']['embedding']
         diff_lm_params = freeze(diff_lm_params)
+
+        del pretrain_model
+
 
 
     # prep for training
